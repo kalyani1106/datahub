@@ -1,0 +1,17 @@
+source:
+  type: dbt
+  config:
+    manifest_path: "C:/Users/varshini/datahub/dbt_datahub/target/manifest.json"
+    catalog_path: "C:/Users/varshini/datahub/dbt_datahub/target/catalog.json"
+    run_results_paths:
+      - "C:/Users/varshini/datahub/dbt_datahub/target/test_run_results.json"
+
+    target_platform: "postgres"
+
+    entities_enabled:
+      queries: "YES"
+
+sink:
+  type: datahub-rest
+  config:
+    server: "http://localhost:8080"

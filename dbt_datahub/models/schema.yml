@@ -1,0 +1,174 @@
+version: 2
+
+sources:
+  - name: public_source
+    schema: public
+    description: "Raw transactional tables in PostgreSQL database"
+    tables:
+      - name: raw_customers
+        description: "Raw customer records stored in PostgreSQL"
+      - name: raw_orders
+        description: "Raw order transactions stored in PostgreSQL"
+
+models:
+  - name: customers
+    description: "Customer master data containing customer profile details and contact information"
+    config:
+      meta:
+        queries:
+        - name: "All Customers"
+          description: "Retrieve all customers"
+          sql: |
+            SELECT
+                customer_id,
+                customer_name,
+                email,
+                city
+            FROM customers
+
+        - name: "Customers by City"
+          description: "Find customers from Hyderabad"
+          sql: |
+            SELECT
+                customer_id,
+                customer_name,
+                email,
+                city
+            FROM customers
+            WHERE city = 'Hyderabad'
+
+        - name: "Customer Count"
+          description: "Count total customers"
+          sql: |
+            SELECT COUNT(*) AS customer_count
+            FROM customers
+
+        - name: "City-wise Sales"
+          description: "Calculate customer reach, total orders placed, and revenue generated across cities"
+          sql: |
+            SELECT
+                c.city,
+                COUNT(DISTINCT c.customer_id) AS number_of_customers,
+                COUNT(o.order_id) AS total_orders,
+                COALESCE(SUM(o.order_amount), 0.00) AS total_sales
+            FROM customers c
+            LEFT JOIN orders o ON c.customer_id = o.customer_id
+            GROUP BY c.city
+            ORDER BY total_sales DESC
+
+    columns:
+      - name: customer_id
+        description: "Unique alphanumeric identifier for the customer"
+        data_tests:
+          - unique
+          - not_null
+      - name: customer_name
+        description: "Full name of the customer"
+        data_tests:
+          - not_null
+      - name: email
+        description: "Contact email address of the customer"
+        data_tests:
+          - not_null
+      - name: city
+        description: "City where the customer resides"
+
+  - name: orders
+    description: "Customer order transactions detailing individual purchases and amounts"
+    config:
+      meta:
+        queries:
+        - name: "Order Statistics"
+          description: "Compute key performance metrics: total orders, total revenue, average order value, and highest order value"
+          sql: |
+            SELECT
+                COUNT(order_id) AS total_orders,
+                COALESCE(SUM(order_amount), 0.00) AS total_revenue,
+                COALESCE(ROUND(AVG(order_amount), 2), 0.00) AS average_order_value,
+                COALESCE(MAX(order_amount), 0.00) AS max_order_value
+            FROM orders
+
+    columns:
+      - name: order_id
+        description: "Unique identifier for the order"
+        data_tests:
+          - unique
+          - not_null
+      - name: customer_id
+        description: "Foreign key reference to the customer placing the order"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('customers')
+                field: customer_id
+      - name: product_id
+        description: "Identifier for the product purchased"
+      - name: quantity
+        description: "Number of units purchased in the order"
+        data_tests:
+          - not_null
+      - name: order_amount
+        description: "Total monetary amount for the order"
+        data_tests:
+          - not_null
+      - name: order_date
+        description: "Date on which the order was placed"
+
+  - name: customer_order_summary
+    description: "Aggregated customer order information including order counts, total spend, and average order value"
+    config:
+      meta:
+        queries:
+        - name: "Customer Order Summary"
+          description: "Aggregate customer purchasing activity including order count, cumulative spend, and average order value"
+          sql: |
+            SELECT
+                c.customer_id,
+                c.customer_name,
+                c.city,
+                COUNT(o.order_id) AS total_orders,
+                COALESCE(SUM(o.order_amount), 0.00) AS total_amount,
+                COALESCE(ROUND(AVG(o.order_amount), 2), 0.00) AS average_order_amount
+            FROM customers c
+            JOIN orders o ON c.customer_id = o.customer_id
+            GROUP BY c.customer_id, c.customer_name, c.city
+            ORDER BY total_amount DESC
+
+        - name: "Top Customers"
+          description: "Identify top 5 customers ranked by highest cumulative order spending"
+          sql: |
+            SELECT
+                customer_id,
+                customer_name,
+                city,
+                total_orders,
+                total_amount AS total_spent
+            FROM customer_order_summary
+            ORDER BY total_amount DESC
+            LIMIT 5
+
+    columns:
+      - name: customer_id
+        description: "Customer unique identifier"
+        data_tests:
+          - unique
+          - not_null
+      - name: customer_name
+        description: "Name of the customer"
+        data_tests:
+          - not_null
+      - name: city
+        description: "City where the customer resides"
+      - name: total_orders
+        description: "Total count of orders completed by the customer"
+        data_tests:
+          - not_null
+      - name: total_amount
+        description: "Cumulative spend across all orders for the customer"
+        data_tests:
+          - not_null
+      - name: average_order_amount
+        description: "Average order value calculated as total amount divided by order count"
+        data_tests:
+          - not_null
